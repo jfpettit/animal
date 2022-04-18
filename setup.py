@@ -8,6 +8,7 @@ setup(
         "torch>=1.11",
         "gym",
         "click",
-        "kindling @ git+https://github.com/jfpettit/kindling@main"
+        "kindling @ git+https://github.com/jfpettit/kindling@main",
+        "tqdm"
     ]
 )

@@ -9,6 +9,7 @@ from kindling.neuralnets import FireActorCritic
 from kindling import utils as utils
 from torchify import TorchifyEnv
 import yaml
+from tqdm import tqdm
 
 # TODO:
 #   1. Make minibatch size actually do something. One way is to tie into torch.Datasets and torch.DataLoaders, create new dataset and dataloader at the end of each batch
@@ -185,7 +186,7 @@ class PPO:
         return self.buffer.get()
 
     def run(self):
-        for i in range(self.epochs):
+        for i in tqdm(range(self.epochs)):
             batch = self.get_batch()
             batch = [torch.as_tensor(b) for b in batch]
             pol_out, val_out = self.update(batch)
