@@ -1,4 +1,5 @@
-import sys
+import click
+import yaml
 from itertools import chain
 from copy import deepcopy
 import torch
@@ -26,12 +27,18 @@ class SAC:
         replay_size: int = int(1e6),
         polyak: float = 0.95,
         horizon: int = 1000,
+        bellman_loss: str = "mse",
         env_kwargs: dict = {}
     ) -> None:
 
         self.alpha = alpha
         self.gamma = gamma
-        self.bellman_backup_loss = nn.MSELoss()
+        if bellman_loss.lower() == "mse":
+            self.bellman_backup_loss = nn.MSELoss()
+        elif bellman_loss.lower() == "huber":
+            self.bellman_backup_loss = nn.HuberLoss()
+        else:
+            raise ValueError(f"Loss {bellman_loss} is not an option, pick `mse` or `huber`.")
         self.start = 0
         self.steps_per_epoch = steps_per_epoch
         self.warmup_steps = warmup_steps
@@ -141,6 +148,7 @@ class SAC:
         state, episode_return, episode_length = self.env.reset(), 0, 0
         rewlst = []
         lenlst = []
+        epoch = 0
         for i in tqdm(range(self.steps)):
             # Main loop: collect experience in env and update/log each epoch
 
@@ -178,11 +186,11 @@ class SAC:
             self.t += 1
             if self.t > self.update_after and self.t % self.update_every == 0:
                 trackit = {
-                    "MeanEpReturn": np.mean(rewlst),
-                    "StdEpReturn": np.std(rewlst),
-                    "MaxEpReturn": np.max(rewlst),
-                    "MinEpReturn": np.min(rewlst),
-                    "MeanEpLength": np.mean(lenlst),
+                    "MeanEpReturn": np.mean(rewlst[-self.steps_per_epoch:]),
+                    "StdEpReturn": np.std(rewlst[-self.steps_per_epoch:]),
+                    "MaxEpReturn": np.max(rewlst[-self.steps_per_epoch:]),
+                    "MinEpReturn": np.min(rewlst[-self.steps_per_epoch:]),
+                    "MeanEpLength": np.mean(lenlst[-self.steps_per_epoch:]),
                 }
                 self.tracker_dict.update(trackit)
                 self.update()
@@ -194,12 +202,12 @@ class SAC:
                     num_test_episodes=self.num_test_episodes, max_ep_len=max_ep_len
                 )
                 self.tracker_dict.update(testtrack)
+                print(f"=== EPOCH {epoch} ===")
                 self.printdict()
-                rewlst = []
-                lenlst = []
                 state = self.env.reset()
                 episode_length = 0
                 episode_return = 0
+                epoch += 1
 
         return self.tracker_dict
 
@@ -209,7 +217,6 @@ class SAC:
         Args:
             out_file (sys.stdout or string): File for output. If writing to a file, opening it for writing should be handled in :func:`on_epoch_end`.
         """
-        print("\n")
         for k, v in self.tracker_dict.items():
             print(f"{k}: {v}")
         print("\n")
@@ -245,8 +252,14 @@ class SAC:
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
         
+@click.command()
+@click.option("--config-file", "-cf", default="configs/default_sac.yaml")
+def main(config_file):
+    with open(config_file, 'rb') as f:
+        config = yaml.safe_load(f)
+
+    sac = SAC(**config)
+    sac.run()
 
 if __name__ == "__main__":
-    env = "pybullet_envs:InvertedPendulumBulletEnv-v0"
-    sac = SAC(env)
-    sac.run()
+    main()

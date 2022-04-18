@@ -8,6 +8,7 @@ from kindling.datasets import PolicyGradientRLDataset
 from kindling.neuralnets import FireActorCritic
 from kindling import utils as utils
 from torchify import TorchifyEnv
+import yaml
 
 # TODO:
 #   1. Make minibatch size actually do something. One way is to tie into torch.Datasets and torch.DataLoaders, create new dataset and dataloader at the end of each batch
@@ -19,6 +20,7 @@ from torchify import TorchifyEnv
 class PPO:
     def __init__(self,
         env: str,
+        epochs: 100,
         val_loss: str = "mse",
         clipratio: float = 0.2,
         train_iters: int = 80,
@@ -44,6 +46,7 @@ class PPO:
         self.minibatch_size = minibatch_size
         self.horizon = horizon
         self.maxkl = maxkl
+        self.epochs = epochs
         
         self.buffer = PGBuffer(
             obs_dim=self.env.observation_space.shape[0],
@@ -181,22 +184,26 @@ class PPO:
 
         return self.buffer.get()
 
-@click.command()
-@click.option("--env", "-e", default="adversarial_gym:ContinuousCartPole-v0")
-@click.option("--epochs", "-eps", default=100)
-def run(
-    env,
-    epochs
-):
-    agent = PPO(env)
+    def run(self):
+        for i in range(self.epochs):
+            batch = self.get_batch()
+            batch = [torch.as_tensor(b) for b in batch]
+            pol_out, val_out = self.update(batch)
+            print(f"\n=== EPOCH {i} ===")
+            for k, v in self.tracker_dict.items():
+                print(f"{k}: {v}")
 
-    for i in range(epochs):
-        batch = agent.get_batch()
-        batch = [torch.as_tensor(b) for b in batch]
-        pol_out, val_out = agent.update(batch)
-        print(f"\n=== EPOCH {i} ===")
-        for k, v in agent.tracker_dict.items():
-            print(f"{k}: {v}")
+           
+
+@click.command()
+@click.option("--config-file", "-cf", default="configs/default_ppo.py")
+def main(
+    config_file
+):
+    with open(config_file, "rb") as f:
+        config = yaml.safe_load(f)
+    agent = PPO(**config)
+    agent.run()
 
 if __name__ == "__main__":
-    run()
+    main()
