@@ -8,6 +8,7 @@ from kindling.datasets import PolicyGradientRLDataset
 from kindling.neuralnets import FireActorCritic
 from kindling import utils as utils
 from torchify import TorchifyEnv
+from utils import RunningActionStats
 import yaml
 from tqdm import tqdm
 
@@ -48,6 +49,7 @@ class PPO:
         self.horizon = horizon
         self.maxkl = maxkl
         self.epochs = epochs
+        self.action_stats = RunningActionStats(self.env)
         
         self.buffer = PGBuffer(
             obs_dim=self.env.observation_space.shape[0],
@@ -142,6 +144,7 @@ class PPO:
 
         for i in range(self.batch_size):
             action, logp, value = self.ac.step(state)
+            self.action_stats.update(action)
             next_state, reward, done, info = self.env.step(action)
 
             self.buffer.store(
@@ -179,7 +182,10 @@ class PPO:
             "StdEpReturn": np.std(rewlst),
             "MaxEpReturn": np.max(rewlst),
             "MinEpReturn": np.min(rewlst),
-            "MeanEpLength": np.mean(lenlst)
+            "MeanEpLength": np.mean(lenlst),
+            "PolicyDistVariance": self.ac.policy.logstd.mean().exp().sqrt().item(),
+            "ActionsTakenMean": self.action_stats.mu,
+            "ActionsTakenVariance": self.action_stats.var
         }
         self.tracker_dict.update(track)
 

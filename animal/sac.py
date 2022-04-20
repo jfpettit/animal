@@ -20,12 +20,12 @@ class SAC:
         gamma: float = 0.99,
         steps_per_epoch: int = 4000,
         warmup_steps: int = 10000,
-        update_after: int = 2000,
-        update_every: int = 500,
+        update_after: int = 1000,
+        update_every: int = 50,
         act_noise: float = 0.1,
         num_test_episodes: int = 10,
         replay_size: int = int(1e6),
-        polyak: float = 0.95,
+        polyak: float = 0.995,
         horizon: int = 1000,
         bellman_loss: str = "mse",
         env_kwargs: dict = {}
@@ -89,7 +89,11 @@ class SAC:
 
         loss_pi = (self.alpha * logp_pi - q_pi).mean()
 
-        pi_info = dict(PolicyLogP=logp_pi.detach().numpy())
+        pi_info = dict(
+            MeanPolicyLogP=logp_pi.mean().detach().numpy(),
+            PolicyLoss=loss_pi
+        )
+        self.tracker_dict.update(pi_info)
 
         return loss_pi, pi_info
 
@@ -117,9 +121,12 @@ class SAC:
         loss_q = loss_q1 + loss_q2
 
         q_info = dict(
-            Q1Values=q1.detach().numpy(),
-            Q2Values=q2.detach().numpy()
+            Q1MeanValues=q1.mean().detach().numpy(),
+            Q2MeanValues=q2.mean().detach().numpy(),
+            Q1Loss=loss_q1,
+            Q2Loss=loss_q2
         )
+        self.tracker_dict.update(q_info)
 
         return loss_q, q_info
 
@@ -186,11 +193,11 @@ class SAC:
             self.t += 1
             if self.t > self.update_after and self.t % self.update_every == 0:
                 trackit = {
-                    "MeanEpReturn": np.mean(rewlst[-self.steps_per_epoch:]),
-                    "StdEpReturn": np.std(rewlst[-self.steps_per_epoch:]),
-                    "MaxEpReturn": np.max(rewlst[-self.steps_per_epoch:]),
-                    "MinEpReturn": np.min(rewlst[-self.steps_per_epoch:]),
-                    "MeanEpLength": np.mean(lenlst[-self.steps_per_epoch:]),
+                    "MeanEpReturn": np.mean(rewlst[-self.update_every:]),
+                    "StdEpReturn": np.std(rewlst[-self.update_every:]),
+                    "MaxEpReturn": np.max(rewlst[-self.update_every:]),
+                    "MinEpReturn": np.min(rewlst[-self.update_every:]),
+                    "MeanEpLength": np.mean(lenlst[-self.update_every:]),
                 }
                 self.tracker_dict.update(trackit)
                 self.update()
