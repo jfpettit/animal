@@ -38,6 +38,7 @@ class PPO:
         env_kwargs: dict = {},
         agent_name: str = 'Agent',
         seed: int = 0,
+        device: str = "cpu"
     ) -> None:
         if val_loss.lower() == "mse":
             self.val_loss = nn.MSELoss()
@@ -46,7 +47,7 @@ class PPO:
         else:
             raise ValueError(f"Value loss {val_loss} not supported. Use `mse` or `huber`.")
         self.tracker_dict = {}
-        self.env = TorchifyEnv(gym.make(env, **env_kwargs))
+        self.env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
         self.clipratio = clipratio
         self.batch_size = batch_size
         self.train_iters = train_iters
@@ -58,6 +59,7 @@ class PPO:
         self.agent_name = agent_name
         self.episode_reward = 0 
         self.episodes_completed = 0 
+        self.device = device
         torch.manual_seed(seed)
         
         self.buffer = PGBuffer(
@@ -72,6 +74,7 @@ class PPO:
             self.env.observation_space.shape[0],
             self.env.action_space
         )
+        self.ac.to(self.device)
 
         self.policy_optimizer = torch.optim.Adam(self.ac.policy.parameters(), lr=3e-4)
         self.value_optimizer = torch.optim.Adam(self.ac.value_f.parameters(), lr=1e-3)
@@ -89,6 +92,7 @@ class PPO:
 
     def value_update(self, batch):
         states, _, _, rets, _ = batch
+        states.to(self.device)
 
         values_old = self.ac.value_f(states)
         val_loss_old = self.calc_val_loss(values_old, rets)
@@ -110,6 +114,12 @@ class PPO:
         states, actions, advs, _, logps_old = batch
         stops = 0
         stopslst = []
+
+        states.to(self.device)
+        actions.to(self.device)
+        advs.to(self.device)
+        logps_old.to(self.device)
+
         policy, logps = self.ac.policy(states, actions)
         pol_loss_old, kl = self.calc_pol_loss(logps, logps_old, advs)
 
@@ -217,7 +227,7 @@ class PPO:
     def set_file_structure(self,config):
         folder = os.path.join(os.getcwd(), 'tensorboards', self.agent_name) 
         if not os.path.isdir(folder):
-            os.mkdir(folder)
+            os.makedirs(folder)
         self.summary_writer = SummaryWriter(logdir=folder)
 
         yaml_file = self.agent_name + '.yaml'
@@ -254,7 +264,6 @@ def main(
 ):
     with open(config_file, "rb") as f:
         config = yaml.safe_load(f)
-        #set_file_structure(config)
     
     if 'param_search' in config.keys():
         params = genConfigs(config)

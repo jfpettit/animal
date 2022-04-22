@@ -28,7 +28,8 @@ class SAC:
         polyak: float = 0.995,
         horizon: int = 1000,
         bellman_loss: str = "mse",
-        env_kwargs: dict = {}
+        env_kwargs: dict = {},
+        device: str = "cpu"
     ) -> None:
 
         self.alpha = alpha
@@ -40,6 +41,7 @@ class SAC:
         else:
             raise ValueError(f"Loss {bellman_loss} is not an option, pick `mse` or `huber`.")
         self.start = 0
+        self.device = device
         self.steps_per_epoch = steps_per_epoch
         self.warmup_steps = warmup_steps
         self.steps = steps_per_epoch * epochs
@@ -50,8 +52,8 @@ class SAC:
         self.polyak = polyak
         self.horizon = horizon
 
-        self.env = TorchifyEnv(gym.make(env, **env_kwargs))
-        self.test_env = TorchifyEnv(gym.make(env, **env_kwargs))
+        self.env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
+        self.test_env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
         self.act_dim = self.env.action_space.shape[0]
         self.act_limit = self.env.action_space.high[0]
 
@@ -65,6 +67,10 @@ class SAC:
             self.env.action_space
         )
         self.ac_targ = deepcopy(self.ac)
+
+        self.ac.to(self.device)
+        self.ac_targ.to(self.device)
+
         for param in self.ac_targ.parameters():
             param.requires_grad = False
 
@@ -80,7 +86,7 @@ class SAC:
 
     def calc_pol_loss(self, batch):
         states, _, _, _, _ = batch
-        states = torch.as_tensor(states, dtype=torch.float32)
+        states = torch.as_tensor(states, dtype=torch.float32).to(self.device)
         pi, logp_pi = self.ac.policy(states)
         pi = torch.as_tensor(pi, dtype=torch.float32)
         q1_pi = self.ac.qfunc1(states, pi)
@@ -99,11 +105,11 @@ class SAC:
 
     def calc_q_loss(self, batch):
         states, next_states, acts, rews, dones = batch
-        states = torch.as_tensor(states, dtype=torch.float32)
-        next_states = torch.as_tensor(next_states, dtype=torch.float32)
-        acts = torch.as_tensor(acts, dtype=torch.float32)
-        rews = torch.as_tensor(rews, dtype=torch.float32)
-        dones = torch.as_tensor(dones)
+        states = torch.as_tensor(states, dtype=torch.float32).to(self.device)
+        next_states = torch.as_tensor(next_states, dtype=torch.float32).to(self.device)
+        acts = torch.as_tensor(acts, dtype=torch.float32).to(self.device)
+        rews = torch.as_tensor(rews, dtype=torch.float32).to(self.device)
+        dones = torch.as_tensor(dones).to(self.device)
 
         q1 = self.ac.qfunc1(states, acts)
         q2 = self.ac.qfunc2(states, acts)
