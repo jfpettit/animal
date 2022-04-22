@@ -219,10 +219,12 @@ class PPO:
         if not os.path.isdir(folder):
             os.mkdir(folder)
         self.summary_writer = SummaryWriter(logdir=folder)
+
         yaml_file = self.agent_name + '.yaml'
         yaml_path = os.path.join(folder, yaml_file)
+
         with open(yaml_path, 'w') as yf:
-            yaml.dump(config, yf)
+            yf.write(yaml.dump(config))
 
 
 def genConfigs(config):
