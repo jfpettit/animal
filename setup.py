@@ -9,6 +9,7 @@ setup(
         "gym",
         "click",
         "kindling @ git+https://github.com/jfpettit/kindling@main",
-        "tqdm"
+        "tqdm",
+        "tensorboardX"
     ]
 )
