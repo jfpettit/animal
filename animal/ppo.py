@@ -1,8 +1,10 @@
 import click
+import os
 import gym
 import numpy as np
 import torch
 import torch.nn as nn
+from tensorboardX import SummaryWriter
 from kindling.buffers import PGBuffer
 from kindling.datasets import PolicyGradientRLDataset
 from kindling.neuralnets import FireActorCritic
@@ -11,6 +13,7 @@ from torchify import TorchifyEnv
 from utils import RunningActionStats
 import yaml
 from tqdm import tqdm
+from copy import deepcopy
 
 # TODO:
 #   1. Make minibatch size actually do something. One way is to tie into torch.Datasets and torch.DataLoaders, create new dataset and dataloader at the end of each batch
@@ -32,7 +35,9 @@ class PPO:
         lam: float = 0.95,
         horizon: int = 1000,
         maxkl: float = 0.01,
-        env_kwargs: dict = {}
+        env_kwargs: dict = {},
+        agent_name: str = 'Agent',
+        seed: int = 0,
     ) -> None:
         if val_loss.lower() == "mse":
             self.val_loss = nn.MSELoss()
@@ -50,6 +55,10 @@ class PPO:
         self.maxkl = maxkl
         self.epochs = epochs
         self.action_stats = RunningActionStats(self.env)
+        self.agent_name = agent_name
+        self.episode_reward = 0 
+        self.episodes_completed = 0 
+        torch.manual_seed(seed)
         
         self.buffer = PGBuffer(
             obs_dim=self.env.observation_space.shape[0],
@@ -154,6 +163,7 @@ class PPO:
             state = next_state
             episode_length += 1
             R += reward
+            self.episode_reward += reward
 
             # If the episode has hit the horizon
             timeup = episode_length == self.horizon
@@ -172,6 +182,10 @@ class PPO:
                 if over:
                     rewlst.append(R)
                     lenlst.append(episode_length)
+                    self.episodes_completed += 1
+                    self.summary_writer.add_scalar('episode_reward', self.episode_reward, self.episodes_completed)
+                    self.summary_writer.add_scalar('episode_length', episode_length, self.episodes_completed)
+                    self.episode_reward = 0
                 
                 state = self.env.reset()
                 R = 0
@@ -183,7 +197,7 @@ class PPO:
             "MaxEpReturn": np.max(rewlst),
             "MinEpReturn": np.min(rewlst),
             "MeanEpLength": np.mean(lenlst),
-            "PolicyDistVariance": self.ac.policy.logstd.mean().exp().sqrt().item(),
+            #"PolicyDistVariance": self.ac.policy.logstd.mean().exp().sqrt().item(),
             "ActionsTakenMean": self.action_stats.mu,
             "ActionsTakenVariance": self.action_stats.var
         }
@@ -200,17 +214,59 @@ class PPO:
             for k, v in self.tracker_dict.items():
                 print(f"{k}: {v}")
 
+    def set_file_structure(self,config):
+        folder = os.path.join(os.getcwd(), 'tensorboards', self.agent_name) 
+        if not os.path.isdir(folder):
+            os.mkdir(folder)
+        self.summary_writer = SummaryWriter(logdir=folder)
+        yaml_file = self.agent_name + '.yaml'
+        yaml_path = os.path.join(folder, yaml_file)
+        with open(yaml_path, 'w') as yf:
+            yaml.dump(config, yf)
+
+
+def genConfigs(config):
+    temp = [[]]
+    params = []
+    for param in config['param_search']:
+        params = []
+        for val in config[param]:
+            for item in temp:
+                copy = deepcopy(item)
+                copy.append(val)
+                params.append(copy)
+        temp = deepcopy(params)
+
+    return params
+
+def trainPPO(config):
+    agent = PPO(**config)
+    agent.set_file_structure(config)
+    agent.run()
            
 
 @click.command()
-@click.option("--config-file", "-cf", default="configs/default_ppo.py")
+@click.option("--config-file", "-cf", default="configs/default_ppo.yaml")
 def main(
-    config_file
+    config_file,
 ):
     with open(config_file, "rb") as f:
         config = yaml.safe_load(f)
-    agent = PPO(**config)
-    agent.run()
+        #set_file_structure(config)
+    
+    if 'param_search' in config.keys():
+        params = genConfigs(config)
+        params_to_search = config['param_search']
+        del[config['param_search']]
+        for agent_num, param_set in enumerate(params):
+            config['agent_name'] = 'Agent' + str(agent_num)
+            for i in range(len(params_to_search)):
+                config[params_to_search[i]] = param_set[i]
+            trainPPO(config)
+    else:
+        trainPPO(config)
+
+           
 
 if __name__ == "__main__":
     main()

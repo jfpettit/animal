@@ -11,5 +11,5 @@ class TorchifyEnv(gym.Wrapper):
 
     def step(self, a):
         obs, rew, done, info = self.env.step(a)
-        obs = torch.as_tensor(obs, dtype=torch.float32)
+        obs = torch.as_tensor(list(obs), dtype=torch.float32)
         return obs, rew, done, info

@@ -1,0 +1,15 @@
+epochs: 100
+env: "CartPole-v1"
+val_loss: "mse"
+clipratio: 0.2
+train_iters: [75, 100, 125]
+batch_size: [1500, 2000, 2500]
+minibatch_size: 256
+gamma: 0.99
+lam: 0.98
+horizon: 1000
+maxkl: 0.01
+env_kwargs: {}
+agent_name: 'Agent2'
+seed: 0
+param_search: ['train_iters', 'batch_size', ]
