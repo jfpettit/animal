@@ -18,6 +18,7 @@ class SAC:
         epochs: int = 100,
         alpha: float = 0.2,
         gamma: float = 0.99,
+        batch_size: int = 64,
         steps_per_epoch: int = 4000,
         warmup_steps: int = 10000,
         update_after: int = 1000,
@@ -51,6 +52,7 @@ class SAC:
         self.num_test_episodes = num_test_episodes
         self.polyak = polyak
         self.horizon = horizon
+        self.batch_size = batch_size
 
         self.env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
         self.test_env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
@@ -236,7 +238,7 @@ class SAC:
 
     def update(self):
         trackit = {}
-        batch = self.buffer.get()
+        batch = self.buffer.sample_batch(batch_size=self.batch_size)
 
         self.q_optimizer.zero_grad()
         loss_q, q_info = self.calc_q_loss(batch)
