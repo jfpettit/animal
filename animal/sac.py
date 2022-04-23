@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from kindling.buffers import ReplayBuffer
 from kindling.neuralnets import FireSACActorCritic
-from torchify import TorchifyEnv
+from animal.torchify import TorchifyEnv
 import gym
 import numpy as np
 from tqdm import tqdm
@@ -88,7 +88,7 @@ class SAC:
         states, _, _, _, _ = batch
         states = torch.as_tensor(states, dtype=torch.float32).to(self.device)
         pi, logp_pi = self.ac.policy(states)
-        pi = torch.as_tensor(pi, dtype=torch.float32)
+        pi = torch.as_tensor(pi, dtype=torch.float32).to(self.device)
         q1_pi = self.ac.qfunc1(states, pi)
         q2_pi = self.ac.qfunc2(states, pi)
         q_pi = torch.min(q1_pi, q2_pi)
@@ -96,7 +96,7 @@ class SAC:
         loss_pi = (self.alpha * logp_pi - q_pi).mean()
 
         pi_info = dict(
-            MeanPolicyLogP=logp_pi.mean().detach().numpy(),
+            MeanPolicyLogP=logp_pi.mean().cpu().detach().numpy(),
             PolicyLoss=loss_pi
         )
         self.tracker_dict.update(pi_info)
@@ -127,8 +127,8 @@ class SAC:
         loss_q = loss_q1 + loss_q2
 
         q_info = dict(
-            Q1MeanValues=q1.mean().detach().numpy(),
-            Q2MeanValues=q2.mean().detach().numpy(),
+            Q1MeanValues=q1.mean().cpu().detach().numpy(),
+            Q2MeanValues=q2.mean().cpu().detach().numpy(),
             Q1Loss=loss_q1,
             Q2Loss=loss_q2
         )
@@ -184,7 +184,7 @@ class SAC:
             done = False if episode_length == max_ep_len else done
 
             # Store experience to replay buffer
-            self.buffer.store(state, action, reward, next_state, done)
+            self.buffer.store(state.cpu(), action, reward, next_state.cpu(), done)
 
             # Super critical, easy to overlook step: make sure to update
             # most recent observation!
