@@ -1,18 +1,27 @@
 import click
+<<<<<<< HEAD
 import os
+=======
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
 import yaml
 from itertools import chain
 from copy import deepcopy
 import torch
 import torch.nn as nn
+<<<<<<< HEAD
 from tensorboardX import SummaryWriter
+=======
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
 from kindling.buffers import ReplayBuffer
 from kindling.neuralnets import FireSACActorCritic
 from torchify import TorchifyEnv
 import gym
 import numpy as np
 from tqdm import tqdm
+<<<<<<< HEAD
 from copy import deepcopy
+=======
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
 
 class SAC:
     def __init__(
@@ -32,8 +41,12 @@ class SAC:
         horizon: int = 1000,
         bellman_loss: str = "mse",
         env_kwargs: dict = {},
+<<<<<<< HEAD
         agent_name: str = 'Agent',
         seed: int = 0
+=======
+        device: str = "cpu"
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
     ) -> None:
 
         self.alpha = alpha
@@ -45,6 +58,10 @@ class SAC:
         else:
             raise ValueError(f"Loss {bellman_loss} is not an option, pick `mse` or `huber`.")
         self.start = 0
+<<<<<<< HEAD
+=======
+        self.device = device
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
         self.steps_per_epoch = steps_per_epoch
         self.warmup_steps = warmup_steps
         self.steps = steps_per_epoch * epochs
@@ -54,6 +71,7 @@ class SAC:
         self.num_test_episodes = num_test_episodes
         self.polyak = polyak
         self.horizon = horizon
+<<<<<<< HEAD
         self.agent_name = agent_name
         self.episode_reward = 0
         self.episodes_completed = 0
@@ -67,6 +85,14 @@ class SAC:
         np.random.seed(seed)
         self.env.seed(seed)
 
+=======
+
+        self.env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
+        self.test_env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
+        self.act_dim = self.env.action_space.shape[0]
+        self.act_limit = self.env.action_space.high[0]
+
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
         self.buffer = ReplayBuffer(
             self.env.observation_space.shape,
             self.env.action_space.shape,
@@ -77,6 +103,13 @@ class SAC:
             self.env.action_space
         )
         self.ac_targ = deepcopy(self.ac)
+<<<<<<< HEAD
+=======
+
+        self.ac.to(self.device)
+        self.ac_targ.to(self.device)
+
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
         for param in self.ac_targ.parameters():
             param.requires_grad = False
 
@@ -92,7 +125,11 @@ class SAC:
 
     def calc_pol_loss(self, batch):
         states, _, _, _, _ = batch
+<<<<<<< HEAD
         states = torch.as_tensor(states, dtype=torch.float32)
+=======
+        states = torch.as_tensor(states, dtype=torch.float32).to(self.device)
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
         pi, logp_pi = self.ac.policy(states)
         pi = torch.as_tensor(pi, dtype=torch.float32)
         q1_pi = self.ac.qfunc1(states, pi)
@@ -111,11 +148,19 @@ class SAC:
 
     def calc_q_loss(self, batch):
         states, next_states, acts, rews, dones = batch
+<<<<<<< HEAD
         states = torch.as_tensor(states, dtype=torch.float32)
         next_states = torch.as_tensor(next_states, dtype=torch.float32)
         acts = torch.as_tensor(acts, dtype=torch.float32)
         rews = torch.as_tensor(rews, dtype=torch.float32)
         dones = torch.as_tensor(dones)
+=======
+        states = torch.as_tensor(states, dtype=torch.float32).to(self.device)
+        next_states = torch.as_tensor(next_states, dtype=torch.float32).to(self.device)
+        acts = torch.as_tensor(acts, dtype=torch.float32).to(self.device)
+        rews = torch.as_tensor(rews, dtype=torch.float32).to(self.device)
+        dones = torch.as_tensor(dones).to(self.device)
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
 
         q1 = self.ac.qfunc1(states, acts)
         q2 = self.ac.qfunc2(states, acts)
@@ -211,10 +256,13 @@ class SAC:
                     "MinEpReturn": np.min(rewlst[-self.update_every:]),
                     "MeanEpLength": np.mean(lenlst[-self.update_every:]),
                 }
+<<<<<<< HEAD
                 self.summary_writer.add_scalar('Mean Episode Reward', np.mean(rewlst), epoch)
                 self.summary_writer.add_scalar('Std Episode Reward', np.std(rewlst), epoch)
                 self.summary_writer.add_scalar('Max Episode Reward', np.max(rewlst), epoch)
                 self.summary_writer.add_scalar('Min Episode Reward', np.min(rewlst), epoch)
+=======
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
                 self.tracker_dict.update(trackit)
                 self.update()
             # End of epoch handling
@@ -274,6 +322,7 @@ class SAC:
             for p, p_targ in zip(self.ac.parameters(), self.ac_targ.parameters()):
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
+<<<<<<< HEAD
 
     def set_file_structure(self,config):
         folder = os.getcwd()
@@ -307,6 +356,8 @@ def trainSAC(config):
     agent = SAC(**config)
     agent.set_file_structure(config)
     agent.run()
+=======
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
         
 @click.command()
 @click.option("--config-file", "-cf", default="configs/default_sac.yaml")
@@ -314,6 +365,7 @@ def main(config_file):
     with open(config_file, 'rb') as f:
         config = yaml.safe_load(f)
 
+<<<<<<< HEAD
     if 'param_search' in config.keys():
         params = genConfigs(config)
         params_to_search = config['param_search']
@@ -325,6 +377,10 @@ def main(config_file):
             trainSAC(config)
     else:
         trainSAC(config)
+=======
+    sac = SAC(**config)
+    sac.run()
+>>>>>>> 377f98b3341a648e4c635607aafc6f9ed84e554f
 
 if __name__ == "__main__":
     main()
