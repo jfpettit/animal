@@ -1,0 +1,15 @@
+epochs: 100
+env: "pybullet_envs:InvertedPendulumBulletEnv-v0"
+bellman_loss: "huber"
+alpha: 0.2
+gamma: 0.99
+steps_per_epoch: 4000
+warmup_steps: 10000
+update_after: 2000
+update_every: 500
+act_noise: 0.1
+num_test_episodes: 10
+replay_size: 1000000
+polyak: 0.95
+horizon: 1000
+env_kwargs: {}

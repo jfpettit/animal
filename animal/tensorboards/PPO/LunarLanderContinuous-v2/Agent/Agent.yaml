@@ -1,0 +1,15 @@
+act_noise: 0.1
+alpha: 0.2
+bellman_loss: huber
+env: LunarLanderContinuous-v2
+env_kwargs: {}
+epochs: 100
+gamma: 0.99
+horizon: 1000
+num_test_episodes: 10
+polyak: 0.95
+replay_size: 1000000
+steps_per_epoch: 4000
+update_after: 2000
+update_every: 500
+warmup_steps: 10000

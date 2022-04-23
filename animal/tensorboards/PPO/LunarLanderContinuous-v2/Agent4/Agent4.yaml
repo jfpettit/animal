@@ -1,0 +1,13 @@
+agent_name: Agent4
+batch_size: 3000
+clipratio: 0.2
+env: LunarLanderContinuous-v2
+env_kwargs: {}
+epochs: 700
+gamma: 0.99
+horizon: 1000
+lam: 0.97
+maxkl: 0.01
+minibatch_size: 256
+train_iters: 80
+val_loss: huber

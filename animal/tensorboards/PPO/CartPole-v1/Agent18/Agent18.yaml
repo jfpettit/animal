@@ -1,0 +1,14 @@
+agent_name: Agent18
+batch_size: 1500
+clipratio: 0.2
+env: CartPole-v1
+env_kwargs: {}
+epochs: 100
+gamma: 0.99
+horizon: 1000
+lam: 0.99
+maxkl: 0.01
+minibatch_size: 256
+seed: 0
+train_iters: 75
+val_loss: mse

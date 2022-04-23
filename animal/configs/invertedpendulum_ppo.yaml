@@ -1,0 +1,12 @@
+epochs: 100
+env: "pybullet_envs:InvertedPendulumBulletEnv-v0"
+val_loss: "mse"
+clipratio: 0.2
+train_iters: 80
+batch_size: 4000
+minibatch_size: 256
+gamma: 0.99
+lam: 0.95
+horizon: 1000
+maxkl: 0.01
+env_kwargs: {}

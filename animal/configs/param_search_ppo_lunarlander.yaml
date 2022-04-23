@@ -1,0 +1,14 @@
+epochs: 700
+env: "LunarLanderContinuous-v2"
+val_loss: "huber"
+clipratio: 0.2
+train_iters: [80, 100]
+batch_size: [1000, 2000, 3000]
+minibatch_size: 256
+gamma: 0.99
+lam: [0.97, 0.98, 0.99]
+horizon: 1000
+maxkl: 0.01
+env_kwargs: {}
+agent_name: 'Agent0'
+param_search: ['train_iters', 'batch_size', 'lam']
