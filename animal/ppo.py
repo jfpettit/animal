@@ -14,6 +14,7 @@ from utils import RunningActionStats
 import yaml
 from tqdm import tqdm
 from copy import deepcopy
+import time
 
 # TODO:
 #   1. Make minibatch size actually do something. One way is to tie into torch.Datasets and torch.DataLoaders, create new dataset and dataloader at the end of each batch
@@ -56,7 +57,7 @@ class PPO:
         self.maxkl = maxkl
         self.epochs = epochs
         self.action_stats = RunningActionStats(self.env)
-        self.agent_name = agent_name
+        self.agent_name = f"{env}-agent_name-{int(time.time())}"
         self.episode_reward = 0 
         self.episodes_completed = 0 
         self.device = device
