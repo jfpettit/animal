@@ -9,8 +9,8 @@ from kindling.buffers import PGBuffer
 from kindling.datasets import PolicyGradientRLDataset
 from kindling.neuralnets import FireActorCritic
 from kindling import utils as utils
-from torchify import TorchifyEnv
-from utils import RunningActionStats
+from animal.torchify import TorchifyEnv
+from animal.utils import RunningActionStats
 import yaml
 from tqdm import tqdm
 from copy import deepcopy
@@ -95,7 +95,8 @@ class PPO:
 
     def value_update(self, batch):
         states, _, _, rets, _ = batch
-        states.to(self.device)
+        rets = rets.to(self.device)
+        states = states.to(self.device)
 
         values_old = self.ac.value_f(states)
         val_loss_old = self.calc_val_loss(values_old, rets)
@@ -118,10 +119,10 @@ class PPO:
         stops = 0
         stopslst = []
 
-        states.to(self.device)
-        actions.to(self.device)
-        advs.to(self.device)
-        logps_old.to(self.device)
+        states = states.to(self.device)
+        actions = actions.to(self.device)
+        advs = advs.to(self.device)
+        logps_old = logps_old.to(self.device)
 
         policy, logps = self.ac.policy(states, actions)
         pol_loss_old, kl = self.calc_pol_loss(logps, logps_old, advs)
@@ -170,7 +171,7 @@ class PPO:
             next_state, reward, done, info = self.env.step(action)
 
             self.buffer.store(
-                state, action, reward, value, logp
+                state.cpu(), action, reward, value, logp
             )
 
             state = next_state
@@ -186,7 +187,7 @@ class PPO:
             epoch_ended = i == self.batch_size - 1
             if over or epoch_ended:
                 if timeup or epoch_ended:
-                    last_val = self.ac.value_f(state).detach().numpy()
+                    last_val = self.ac.value_f(state).cpu().detach().numpy()
                 else:
                     last_val = 0
 
