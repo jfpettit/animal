@@ -57,7 +57,11 @@ class PPO:
         self.maxkl = maxkl
         self.epochs = epochs
         self.action_stats = RunningActionStats(self.env)
-        self.agent_name = f"{env}-agent_name-{int(time.time())}"
+        if ':' in env:
+            self.env_name = env.split(':')[1]
+        else:
+            self.env_name = env
+        self.agent_name = f"{self.env_name}-agent_name-{int(time.time())}"
         self.episode_reward = 0 
         self.episodes_completed = 0 
         self.device = device
@@ -211,7 +215,7 @@ class PPO:
             "MaxEpReturn": np.max(rewlst),
             "MinEpReturn": np.min(rewlst),
             "MeanEpLength": np.mean(lenlst),
-            "PolicyDistVariance": self.ac.policy.logstd.mean().exp().sqrt().item(),
+            #"PolicyDistVariance": self.ac.policy.logstd.mean().exp().sqrt().item(),
             "ActionsTakenMean": self.action_stats.mu,
             "ActionsTakenVariance": self.action_stats.var
         }
@@ -220,8 +224,6 @@ class PPO:
         self.summary_writer.add_scalar('Std Episode Reward', np.std(rewlst), epoch)
         self.summary_writer.add_scalar('Max Episode Reward', np.max(rewlst), epoch)
         self.summary_writer.add_scalar('Min Episode Reward', np.min(rewlst), epoch)
-        self.summary_writer.add_scalar('Actions Taken Mean', self.action_stats.mu, epoch)
-        self.summary_writer.add_scalar('Actions Taken Variance', self.action_stats.var, epoch)
         self.tracker_dict.update(track)
 
         return self.buffer.get()
@@ -237,10 +239,8 @@ class PPO:
 
     def set_file_structure(self,config):
         folder = os.getcwd()
-        for subdir in ['tensorboards', 'PPO', config['env'], self.agent_name]:
-            folder = os.path.join(folder,subdir ) 
-        if not os.path.isdir(folder):
-                os.mkdir(folder)
+        folders = [folder, 'tensorboards', 'PPO', self.env_name, self.agent_name]
+        folder = os.path.join(*folders ) 
         self.summary_writer = SummaryWriter(logdir=folder)
 
         yaml_file = self.agent_name + '.yaml'

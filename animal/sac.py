@@ -13,6 +13,7 @@ import gym
 import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
+import time
 
 class SAC:
     def __init__(
@@ -57,8 +58,11 @@ class SAC:
         self.num_test_episodes = num_test_episodes
         self.polyak = polyak
         self.horizon = horizon
-        self.agent_name = agent_name
-        self.episode_reward = 0
+        if ':' in env:
+            self.env_name = env.split(':')[1]
+        else:
+            self.env_name = env
+        self.agent_name = f"{self.env_name}-agent_name-{int(time.time())}"
         self.episodes_completed = 0
         self.batch_size = batch_size
 
@@ -208,6 +212,8 @@ class SAC:
             if done or (episode_length == max_ep_len):
                 rewlst.append(episode_return)
                 lenlst.append(episode_length)
+                self.summary_writer.add_scalar('Episode Reward', episode_return, self.episodes_completed)
+                self.episodes_completed += 1
                 state, episode_return, episode_length = self.env.reset(), 0, 0
 
             self.t += 1
@@ -219,10 +225,10 @@ class SAC:
                     "MinEpReturn": np.min(rewlst[-self.update_every:]),
                     "MeanEpLength": np.mean(lenlst[-self.update_every:]),
                 }
-                self.summary_writer.add_scalar('Mean Episode Reward', np.mean(rewlst), epoch)
-                self.summary_writer.add_scalar('Std Episode Reward', np.std(rewlst), epoch)
-                self.summary_writer.add_scalar('Max Episode Reward', np.max(rewlst), epoch)
-                self.summary_writer.add_scalar('Min Episode Reward', np.min(rewlst), epoch)
+                self.summary_writer.add_scalar('Mean Episode Reward', np.mean(rewlst[-self.update_every:]), epoch)
+                self.summary_writer.add_scalar('Std Episode Reward', np.std(rewlst[-self.update_every:]), epoch)
+                self.summary_writer.add_scalar('Max Episode Reward', np.max(rewlst[-self.update_every:]), epoch)
+                self.summary_writer.add_scalar('Min Episode Reward', np.mean(lenlst[-self.update_every:]), epoch)
                 self.tracker_dict.update(trackit)
                 self.update()
             # End of epoch handling
@@ -285,10 +291,9 @@ class SAC:
         
     def set_file_structure(self,config):
         folder = os.getcwd()
-        for subdir in ['tensorboards', 'SAC', config['env'], self.agent_name]:
-            folder = os.path.join(folder,subdir ) 
-            if not os.path.isdir(folder):
-                os.mkdir(folder)
+        folders = [folder,'tensorboards', 'SAC', self.env_name, self.agent_name ]
+        folder = os.path.join(*folders ) 
+        os.makedirs(folder)
         self.summary_writer = SummaryWriter(logdir=folder)
 
         yaml_file = self.agent_name + '.yaml'
