@@ -13,3 +13,6 @@ replay_size: 1000000
 polyak: 0.95
 horizon: 1000
 env_kwargs: {}
+seed: 0
+agent_name: 'AgentTest'
+device: 'cuda'
