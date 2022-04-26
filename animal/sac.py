@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 from kindling.buffers import ReplayBuffer
 from kindling.neuralnets import FireSACActorCritic
-from animal.torchify import TorchifyEnv
 import gym
 import numpy as np
 from tqdm import tqdm
+from animal import utils
 
 class SAC:
     def __init__(
@@ -30,7 +30,9 @@ class SAC:
         horizon: int = 1000,
         bellman_loss: str = "mse",
         env_kwargs: dict = {},
-        device: str = "cpu"
+        device: str = "cpu",
+        beta_noise_obs: list = None,
+        beta_noise_act: list = None,
     ) -> None:
 
         self.alpha = alpha
@@ -54,8 +56,12 @@ class SAC:
         self.horizon = horizon
         self.batch_size = batch_size
 
-        self.env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
-        self.test_env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
+        env_ = gym.make(env, **env_kwargs)
+        env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
+        env_ = env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act)
+        self.env = utils.PyTorchWrapper(env_, device=device)
+        self.test_env = utils.PyTorchWrapper(deepcopy(env_.unwrapped), device=device)
+
         self.act_dim = self.env.action_space.shape[0]
         self.act_limit = self.env.action_space.high[0]
 
@@ -261,12 +267,12 @@ class SAC:
 
         trackit["PolicyLoss"] = loss_pi.item()
         trackit.update(pi_info)
-        
+
         with torch.no_grad():
             for p, p_targ in zip(self.ac.parameters(), self.ac_targ.parameters()):
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
-        
+
 @click.command()
 @click.option("--config-file", "-cf", default="configs/default_sac.yaml")
 def main(config_file):

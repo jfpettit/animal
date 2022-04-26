@@ -9,12 +9,11 @@ from kindling.buffers import PGBuffer
 from kindling.datasets import PolicyGradientRLDataset
 from kindling.neuralnets import FireActorCritic
 from kindling import utils as utils
-from animal.torchify import TorchifyEnv
-from animal.utils import RunningActionStats
 import yaml
 from tqdm import tqdm
 from copy import deepcopy
 import time
+from animal import utils
 
 # TODO:
 #   1. Make minibatch size actually do something. One way is to tie into torch.Datasets and torch.DataLoaders, create new dataset and dataloader at the end of each batch
@@ -39,7 +38,9 @@ class PPO:
         env_kwargs: dict = {},
         agent_name: str = 'Agent',
         seed: int = 0,
-        device: str = "cpu"
+        device: str = "cpu",
+        beta_noise_obs: list = None,
+        beta_noise_act: list = None,
     ) -> None:
         if val_loss.lower() == "mse":
             self.val_loss = nn.MSELoss()
@@ -48,7 +49,12 @@ class PPO:
         else:
             raise ValueError(f"Value loss {val_loss} not supported. Use `mse` or `huber`.")
         self.tracker_dict = {}
-        self.env = TorchifyEnv(gym.make(env, **env_kwargs), device=device)
+
+        env_ = gym.make(env, **env_kwargs)
+        env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
+        env_ = env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act)
+        self.env = utils.PyTorchWrapper(env_, device=device)
+
         self.clipratio = clipratio
         self.batch_size = batch_size
         self.train_iters = train_iters
@@ -56,13 +62,13 @@ class PPO:
         self.horizon = horizon
         self.maxkl = maxkl
         self.epochs = epochs
-        self.action_stats = RunningActionStats(self.env)
+        self.action_stats = utils.RunningActionStats(self.env)
         self.agent_name = f"{env}-agent_name-{int(time.time())}"
-        self.episode_reward = 0 
-        self.episodes_completed = 0 
+        self.episode_reward = 0
+        self.episodes_completed = 0
         self.device = device
         torch.manual_seed(seed)
-        
+
         self.buffer = PGBuffer(
             obs_dim=self.env.observation_space.shape[0],
             act_dim=self.env.action_space.shape,
@@ -87,7 +93,7 @@ class PPO:
 
         kl = (logps_old - logps).mean().item()
         return pol_loss, kl
-    
+
     def calc_val_loss(self, values, rets):
         return self.val_loss(values, rets)
 
@@ -155,7 +161,7 @@ class PPO:
         return pol_out, val_out
 
     def get_batch(self) -> None:
-        
+
         state = self.env.reset()
         reward = 0
         R = 0
@@ -198,11 +204,11 @@ class PPO:
                     self.summary_writer.add_scalar('episode_reward', self.episode_reward, self.episodes_completed)
                     self.summary_writer.add_scalar('episode_length', episode_length, self.episodes_completed)
                     self.episode_reward = 0
-                
+
                 state = self.env.reset()
                 R = 0
                 episode_length = 0
-        
+
         track = {
             "MeanEpReturn": np.mean(rewlst),
             "StdEpReturn": np.std(rewlst),
@@ -227,7 +233,7 @@ class PPO:
                 print(f"{k}: {v}")
 
     def set_file_structure(self,config):
-        folder = os.path.join(os.getcwd(), 'tensorboards', self.agent_name) 
+        folder = os.path.join(os.getcwd(), 'tensorboards', self.agent_name)
         if not os.path.isdir(folder):
             os.makedirs(folder)
         self.summary_writer = SummaryWriter(logdir=folder)
@@ -257,7 +263,7 @@ def trainPPO(config):
     agent = PPO(**config)
     agent.set_file_structure(config)
     agent.run()
-           
+
 
 @click.command()
 @click.option("--config-file", "-cf", default="configs/default_ppo.yaml")
@@ -266,7 +272,7 @@ def main(
 ):
     with open(config_file, "rb") as f:
         config = yaml.safe_load(f)
-    
+
     if 'param_search' in config.keys():
         params = genConfigs(config)
         params_to_search = config['param_search']
@@ -279,7 +285,7 @@ def main(
     else:
         trainPPO(config)
 
-           
+
 
 if __name__ == "__main__":
     main()
