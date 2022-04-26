@@ -58,6 +58,7 @@ class PPO:
         env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
         env_ = env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act)
         self.env = utils.PyTorchWrapper(env_, device=device)
+        self.test_env = utils.PyTorchWrapper(env_, device=device)
 
         self.clipratio = clipratio
         self.batch_size = batch_size
