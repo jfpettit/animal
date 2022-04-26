@@ -14,6 +14,7 @@ from tqdm import tqdm
 from copy import deepcopy
 import time
 from animal import utils
+from collections import deque
 
 # TODO:
 #   1. Make minibatch size actually do something. One way is to tie into torch.Datasets and torch.DataLoaders, create new dataset and dataloader at the end of each batch
@@ -41,6 +42,9 @@ class PPO:
         device: str = "cpu",
         beta_noise_obs: list = None,
         beta_noise_act: list = None,
+        early_stop_val: float = None,
+        num_test_episodes: int = 10,
+        reqd_early_stop_epochs: int = 5
     ) -> None:
         if val_loss.lower() == "mse":
             self.val_loss = nn.MSELoss()
@@ -63,10 +67,14 @@ class PPO:
         self.maxkl = maxkl
         self.epochs = epochs
         self.action_stats = utils.RunningActionStats(self.env)
-        self.agent_name = f"{env}-agent_name-{int(time.time())}"
-        self.episode_reward = 0
-        self.episodes_completed = 0
+        self.agent_name = f"{env}-{agent_name}-PPO-{int(time.time())}"
+        self.episode_reward = 0 
+        self.episodes_completed = 0 
         self.device = device
+        self.early_stop_val = early_stop_val
+        self.n_test_episodes = num_test_episodes
+        self.early_stop_track = deque([], maxlen=reqd_early_stop_epochs)
+        self.reqd_epochs = reqd_early_stop_epochs
         torch.manual_seed(seed)
 
         self.buffer = PGBuffer(
@@ -85,6 +93,37 @@ class PPO:
 
         self.policy_optimizer = torch.optim.Adam(self.ac.policy.parameters(), lr=3e-4)
         self.value_optimizer = torch.optim.Adam(self.ac.value_f.parameters(), lr=1e-3)
+
+    def run_test(self):
+        rets = []
+        lens = []
+        for _ in range(self.n_test_episodes):
+            step = 0
+            obs = self.test_env.reset()
+            R = 0
+            done = False
+            while not done:
+                a = self.ac.policy.deterministic_act(obs)
+                obs, rew, done, info = self.test_env.step(a)
+                step += 1
+                R += rew
+                if done:
+                    rets.append(R)
+                    lens.append(step)
+
+        self.tracker_dict.update({
+            "MeanTestEpReturn": np.mean(rets),
+            "MeanTestEpLength": np.mean(lens)
+        })
+        self.early_stop_track.append(np.mean(rets))
+
+    def earlystop(self):
+        if self.early_stop_val is None:
+            return False
+        if len(self.early_stop_track) >= self.reqd_epochs:
+            if np.mean(self.early_stop_track) >= self.early_stop_val:
+                return True
+        return False
 
     def calc_pol_loss(self, logps, logps_old, advs):
         ratio = torch.exp(logps - logps_old)
@@ -228,12 +267,23 @@ class PPO:
             batch = self.get_batch()
             batch = [torch.as_tensor(b) for b in batch]
             pol_out, val_out = self.update(batch)
+            self.run_test()
             print(f"\n=== EPOCH {i} ===")
             for k, v in self.tracker_dict.items():
                 print(f"{k}: {v}")
+            
+            if self.earlystop():
+                print(f"Early stopping triggered on epoch {i}. Exiting.")
+                break
+        
+        self.save()
+            
+    def save(self):
+        folder = os.path.join(os.getcwd(), 'tensorboards/PPO', self.agent_name) 
+        torch.save(self.ac, f"{folder}/{self.agent_name}.pt")
 
     def set_file_structure(self,config):
-        folder = os.path.join(os.getcwd(), 'tensorboards', self.agent_name)
+        folder = os.path.join(os.getcwd(), 'tensorboards/PPO', self.agent_name) 
         if not os.path.isdir(folder):
             os.makedirs(folder)
         self.summary_writer = SummaryWriter(logdir=folder)

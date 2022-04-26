@@ -10,3 +10,4 @@ lam: 0.95
 horizon: 1000
 maxkl: 0.01
 env_kwargs: {}
+early_stop_val: 490.0

@@ -1,3 +1,5 @@
+import os
+import time
 import click
 import yaml
 from itertools import chain
@@ -10,6 +12,7 @@ import gym
 import numpy as np
 from tqdm import tqdm
 from animal import utils
+from collections import deque
 
 class SAC:
     def __init__(
@@ -33,6 +36,9 @@ class SAC:
         device: str = "cpu",
         beta_noise_obs: list = None,
         beta_noise_act: list = None,
+        agent_name: str = "Agent",
+        early_stop_val: float = None,
+        reqd_early_stop_epochs: int = 5
     ) -> None:
 
         self.alpha = alpha
@@ -55,6 +61,10 @@ class SAC:
         self.polyak = polyak
         self.horizon = horizon
         self.batch_size = batch_size
+        self.early_stop_val = early_stop_val
+        self.early_stop_track = deque([], maxlen=reqd_early_stop_epochs)
+        self.reqd_epochs = reqd_early_stop_epochs
+        self.agent_name = f"{env}-{agent_name}-SAC-{int(time.time())}"
 
         env_ = gym.make(env, **env_kwargs)
         env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
@@ -156,8 +166,22 @@ class SAC:
                 ep_len += 1
             test_return.append(ep_ret)
             test_length.append(ep_len)
-            trackit = dict(MeanTestEpReturn=np.mean(test_return), MeanTestEpLength=np.mean(test_length))
+        trackit = dict(MeanTestEpReturn=np.mean(test_return), MeanTestEpLength=np.mean(test_length))
+        self.early_stop_track.append(np.mean(test_return))
         return trackit
+
+    def earlystop(self):
+        if self.early_stop_val is None:
+            return False
+        if len(self.early_stop_track) >= self.reqd_epochs:
+            if np.mean(self.early_stop_track) >= self.early_stop_val:
+                return True
+        return False
+
+    def save(self):
+        folder = os.path.join(os.getcwd(), 'tensorboards/SAC', self.agent_name) 
+        os.makedirs(folder, exist_ok=True)
+        torch.save(self.ac, f"{folder}/{self.agent_name}.pt")
 
     def get_action(self, o, noise_scale):
         a = self.ac.act(torch.as_tensor(o, dtype=torch.float32))
@@ -225,11 +249,17 @@ class SAC:
                 self.tracker_dict.update(testtrack)
                 print(f"=== EPOCH {epoch} ===")
                 self.printdict()
+                if self.earlystop():
+                    print(f"Early stopping triggered on epoch {epoch}. Exiting.")
+                    break
+
                 state = self.env.reset()
                 episode_length = 0
                 episode_return = 0
                 epoch += 1
 
+
+        self.save()
         return self.tracker_dict
 
     def printdict(self) -> None:
