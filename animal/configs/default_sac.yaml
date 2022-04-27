@@ -1,12 +1,13 @@
-epochs: 100
+epochs: 750 
 env: "LunarLanderContinuous-v2"
-bellman_loss: "huber"
+bellman_loss: "mse"
+batch_size: 100
 alpha: 0.2
 gamma: 0.99
 steps_per_epoch: 4000
 warmup_steps: 10000
-update_after: 2000
-update_every: 500
+update_after: 1000
+update_every: 50
 act_noise: 0.1
 num_test_episodes: 10
 replay_size: 1000000

@@ -42,6 +42,8 @@ class PPO:
         device: str = "cpu",
         beta_noise_obs: list = None,
         beta_noise_act: list = None,
+        beta_noise_obs_test: list = None,
+        beta_noise_act_test: list = None,
         early_stop_val: float = None,
         num_test_episodes: int = 10,
         reqd_early_stop_epochs: int = 5
@@ -58,7 +60,11 @@ class PPO:
         env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
         env_ = env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act)
         self.env = utils.PyTorchWrapper(env_, device=device)
-        self.test_env = utils.PyTorchWrapper(env_, device=device)
+        test_env_ = gym.make(env, **env_kwargs)
+        test_env_ = test_env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs_test)
+        test_env_ = test_env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act_test)
+
+        self.test_env = utils.PyTorchWrapper(test_env_, device=device)
 
         self.clipratio = clipratio
         self.batch_size = batch_size

@@ -1,5 +1,5 @@
 epochs: 300
-env: "pybullet_envs:InvertedPendulumBulletEnv-v0"
+env: "LunarLanderContinuous-v2"
 val_loss: "mse"
 clipratio: 0.2
 train_iters: 80
@@ -9,6 +9,5 @@ lam: 0.95
 horizon: 1000
 maxkl: 0.01
 env_kwargs: {}
-early_stop_val: 1000.0
+early_stop_val: 210.0
 reqd_early_stop_epochs: 50
-beta_noise_obs_test: [1, 1]

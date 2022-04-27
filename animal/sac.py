@@ -36,9 +36,12 @@ class SAC:
         device: str = "cpu",
         beta_noise_obs: list = None,
         beta_noise_act: list = None,
+        beta_noise_obs_test: list = None,
+        beta_noise_act_test: list = None,
         agent_name: str = "Agent",
         early_stop_val: float = None,
-        reqd_early_stop_epochs: int = 5
+        reqd_early_stop_epochs: int = 5,
+        learning_rate: float = 1e-3
     ) -> None:
 
         self.alpha = alpha
@@ -70,7 +73,13 @@ class SAC:
         env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
         env_ = env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act)
         self.env = utils.PyTorchWrapper(env_, device=device)
-        self.test_env = utils.PyTorchWrapper(deepcopy(env_.unwrapped), device=device)
+        test_env_ = gym.make(env, **env_kwargs)
+        test_env_ = test_env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs_test)
+        test_env_ = test_env_ if not beta_noise_act else utils.BetaNoiseActionWrapper(env_, *beta_noise_act_test)
+
+        self.test_env = utils.PyTorchWrapper(test_env_, device=device)
+
+
 
         self.act_dim = self.env.action_space.shape[0]
         self.act_limit = self.env.action_space.high[0]
@@ -92,12 +101,12 @@ class SAC:
         for param in self.ac_targ.parameters():
             param.requires_grad = False
 
-        self.policy_optimizer = torch.optim.Adam(self.ac.policy.parameters(), lr=1e-3)
+        self.policy_optimizer = torch.optim.Adam(self.ac.policy.parameters(), lr=learning_rate)
         self.qfunc_params = chain(
             self.ac.qfunc1.parameters(),
             self.ac.qfunc2.parameters()
         )
-        self.q_optimizer = torch.optim.Adam(self.qfunc_params, lr=1e-3)
+        self.q_optimizer = torch.optim.Adam(self.qfunc_params, lr=learning_rate)
 
         self.t = 0
         self.tracker_dict = {}
