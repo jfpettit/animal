@@ -14,6 +14,7 @@ from tqdm import tqdm
 from copy import deepcopy
 import time
 from animal import utils
+from animal.tb_log import TensorboardLogger
 from collections import deque
 
 # TODO:
@@ -66,6 +67,7 @@ class PPO:
 
         self.test_env = utils.PyTorchWrapper(test_env_, device=device)
 
+
         self.clipratio = clipratio
         self.batch_size = batch_size
         self.train_iters = train_iters
@@ -83,6 +85,8 @@ class PPO:
         self.early_stop_track = deque([], maxlen=reqd_early_stop_epochs)
         self.reqd_epochs = reqd_early_stop_epochs
         torch.manual_seed(seed)
+
+        self.logger = TensorboardLogger(self.agent_name, folder_name="tensorboards/PPO")
 
         self.buffer = PGBuffer(
             obs_dim=self.env.observation_space.shape[0],
@@ -247,8 +251,6 @@ class PPO:
                     rewlst.append(R)
                     lenlst.append(episode_length)
                     self.episodes_completed += 1
-                    self.summary_writer.add_scalar('episode_reward', self.episode_reward, self.episodes_completed)
-                    self.summary_writer.add_scalar('episode_length', episode_length, self.episodes_completed)
                     self.episode_reward = 0
 
                 state = self.env.reset()
@@ -262,8 +264,8 @@ class PPO:
             "MinEpReturn": np.min(rewlst),
             "MeanEpLength": np.mean(lenlst),
             #"PolicyDistVariance": self.ac.policy.logstd.mean().exp().sqrt().item(),
-            "ActionsTakenMean": self.action_stats.mu,
-            "ActionsTakenVariance": self.action_stats.var
+            "ActionsTakenMean": self.action_stats.mu.mean(),
+            "ActionsTakenVariance": self.action_stats.var.mean()
         }
         self.tracker_dict.update(track)
 
@@ -275,6 +277,7 @@ class PPO:
             batch = [torch.as_tensor(b) for b in batch]
             pol_out, val_out = self.update(batch)
             self.run_test()
+            self.logger.logdict(self.tracker_dict, step=i)
             print(f"\n=== EPOCH {i} ===")
             for k, v in self.tracker_dict.items():
                 print(f"{k}: {v}")
@@ -286,22 +289,10 @@ class PPO:
         self.save()
             
     def save(self):
-        folder = os.path.join(os.getcwd(), 'tensorboards/PPO', self.agent_name) 
+        folder = self.logger.folder
         torch.save(self.ac, f"{folder}/{self.agent_name}.pt")
 
-    def set_file_structure(self,config):
-        folder = os.path.join(os.getcwd(), 'tensorboards/PPO', self.agent_name) 
-        if not os.path.isdir(folder):
-            os.makedirs(folder)
-        self.summary_writer = SummaryWriter(logdir=folder)
-
-        yaml_file = self.agent_name + '.yaml'
-        yaml_path = os.path.join(folder, yaml_file)
-
-        with open(yaml_path, 'w') as yf:
-            yf.write(yaml.dump(config))
-
-
+    
 def genConfigs(config):
     temp = [[]]
     params = []
@@ -318,7 +309,7 @@ def genConfigs(config):
 
 def trainPPO(config):
     agent = PPO(**config)
-    agent.set_file_structure(config)
+    agent.logger.save_config(config, agent.agent_name)
     agent.run()
 
 

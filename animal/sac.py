@@ -13,6 +13,7 @@ import numpy as np
 from tqdm import tqdm
 from animal import utils
 from collections import deque
+from animal.tb_log import TensorboardLogger
 
 class SAC:
     def __init__(
@@ -68,6 +69,7 @@ class SAC:
         self.early_stop_track = deque([], maxlen=reqd_early_stop_epochs)
         self.reqd_epochs = reqd_early_stop_epochs
         self.agent_name = f"{env}-{agent_name}-SAC-{int(time.time())}"
+        self.logger = TensorboardLogger(self.agent_name, "tensorboards/SAC")
 
         env_ = gym.make(env, **env_kwargs)
         env_ = env_ if not beta_noise_obs else utils.BetaNoiseObservationWrapper(env_, *beta_noise_obs)
@@ -256,6 +258,7 @@ class SAC:
                     num_test_episodes=self.num_test_episodes, max_ep_len=max_ep_len
                 )
                 self.tracker_dict.update(testtrack)
+                self.logger.logdict(self.tracker_dict, step=epoch)
                 print(f"=== EPOCH {epoch} ===")
                 self.printdict()
                 if self.earlystop():
@@ -319,6 +322,7 @@ def main(config_file):
         config = yaml.safe_load(f)
 
     sac = SAC(**config)
+    sac.logger.save_config(config, sac.agent_name)
     sac.run()
 
 if __name__ == "__main__":
